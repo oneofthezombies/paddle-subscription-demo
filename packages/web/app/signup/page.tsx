@@ -13,6 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 const formSchema = z.object({
   email: z
@@ -34,7 +35,21 @@ export function SignUpForm() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("Submitted values:", values);
+    fetch("/api/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(values),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          toast.error(`Sign Up failed. ${res.status} ${await res.text()}`);
+        } else {
+          toast.success("Sign Up succeeded.");
+        }
+      })
+      .catch((err) => toast.error(`Sign Up request failed. ${err}`));
   }
 
   return (

@@ -4,14 +4,17 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { initializePaddle, Paddle } from "@paddle/paddle-js";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export default function Home() {
   const [paddle, setPaddle] = useState<Paddle>();
 
   useEffect(() => {
+    toast.error(`Please set Paddle Client Token.`);
     const paddleClientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
     if (!paddleClientToken) {
-      throw new Error("Please set NEXT_PUBLIC_PADDLE_CLIENT_TOKEN env var.");
+      setTimeout(() => toast.error(`Please set Paddle Client Token.`));
+      return;
     }
 
     initializePaddle({
@@ -32,9 +35,9 @@ export default function Home() {
           variant: "one-page",
         },
       },
-    }).then((v) => {
-      setPaddle(v);
-    });
+    })
+      .then(setPaddle)
+      .catch((err) => toast.error(`Paddle initialization failed. ${err}`));
   }, []);
 
   return (
