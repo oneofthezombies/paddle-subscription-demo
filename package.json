@@ -3,11 +3,13 @@
   "workspaces": [
     "packages/*"
   ],
-  "devDependencies": {
-    "markdown-toc": "1.2.0",
-    "sort-package-json": "3.0.0"
-  },
   "scripts": {
     "readme": "markdown-toc -i README.md"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.14",
+    "markdown-toc": "1.2.0",
+    "sort-package-json": "3.0.0",
+    "typescript": "5.8.2"
   }
 }
