@@ -1,0 +1,12 @@
+# Node.js
+node_modules/
+
+# dotenv
+.env*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Temporary files
+temp/

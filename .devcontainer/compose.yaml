@@ -1,0 +1,21 @@
+services:
+  work:
+    build:
+      context: ../
+      dockerfile: .devcontainer/Dockerfile
+    restart: 'no'
+    network_mode: 'host'
+    volumes:
+      - ../:/work
+
+  db:
+    image: postgres:17.4-alpine3.21
+    restart: 'no'
+    network_mode: 'host'
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
