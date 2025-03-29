@@ -1,9 +1,11 @@
 {
   "enabledFileTypes": {
     "javascript": true,
+    "javascriptreact": true,
     "json": true,
     "jsonc": true,
     "typescript": true,
+    "typescriptreact": true,
     "yaml": true
   },
   "ignorePaths": [
@@ -11,5 +13,5 @@
     ".devcontainer/devcontainer.json",
     ".devcontainer/Dockerfile"
   ],
-  "words": ["dotenv", "dogu", "tocstop"]
+  "words": ["tocstop"]
 }
