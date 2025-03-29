@@ -1,1 +1,1 @@
-# Paddle Subscription Payment System Demo
+# Paddle Subscription Demo
