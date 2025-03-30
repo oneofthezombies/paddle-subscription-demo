@@ -22,7 +22,7 @@ export default function Home() {
       environment: "sandbox",
       debug: true,
       eventCallback: (ev) => {
-        console.log(ev);
+        toast.info(`Paddle event. ${ev}`);
       },
       checkout: {
         settings: {

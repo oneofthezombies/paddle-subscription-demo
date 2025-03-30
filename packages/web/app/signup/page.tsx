@@ -14,27 +14,18 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-
-const formSchema = z.object({
-  email: z
-    .string()
-    .min(1, { message: "Email is required." })
-    .email({ message: "Invalid email address." }),
-  password: z
-    .string()
-    .min(1, { message: "Password must be at least 1 characters." }),
-});
+import { SignUp } from "@/lib/schemas";
 
 export function SignUpForm() {
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<SignUp>({
+    resolver: zodResolver(SignUp),
     defaultValues: {
       email: "",
       password: "",
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: SignUp) {
     fetch("/api/signup", {
       method: "POST",
       headers: {
