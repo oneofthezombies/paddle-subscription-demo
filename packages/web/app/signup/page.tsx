@@ -1,6 +1,5 @@
 "use client";
 
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { SignUp } from "@/lib/schemas";
+import { SignUp, signUpIdempotencyKey } from "@/lib/common";
 
 export function SignUpForm() {
   const form = useForm<SignUp>({
@@ -25,11 +24,13 @@ export function SignUpForm() {
     },
   });
 
-  function onSubmit(values: SignUp) {
+  async function onSubmit(values: SignUp) {
+    const { email } = values;
     fetch("/api/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Idempotency-Key": await signUpIdempotencyKey(email),
       },
       body: JSON.stringify(values),
     })
