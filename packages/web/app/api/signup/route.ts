@@ -99,7 +99,9 @@ export async function POST(request: Request) {
     return tx0Res.data;
   }
 
+  // TODO: A timeout is needed to cover the case where the server stops when status is in_progress.
   const paddleCustomer = await createPaddleCustomer(email);
+
   const tx1Res = await tryAsync(async () => {
     return await db.transaction(async (tx) => {
       const task = await selectIdemTaskForUpdate(tx, idempotencyKey);
