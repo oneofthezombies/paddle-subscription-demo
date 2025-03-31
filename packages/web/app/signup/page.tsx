@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { SignUp, signUpIdempotencyKey } from "@/lib/common";
+import { SignUp } from "@/lib/common";
 
 export function SignUpForm() {
   const form = useForm<SignUp>({
@@ -25,18 +25,26 @@ export function SignUpForm() {
   });
 
   async function onSubmit(values: SignUp) {
-    const { email } = values;
+    const signUpIdempotencyKey =
+      localStorage.getItem("signUpIdempotencyKey") || crypto.randomUUID();
+    localStorage.setItem("signUpIdempotencyKey", signUpIdempotencyKey);
+
     fetch("/api/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Idempotency-Key": await signUpIdempotencyKey(email),
+        "Idempotency-Key": signUpIdempotencyKey,
       },
       body: JSON.stringify(values),
     })
       .then(async (res) => {
+        const { status } = res;
+        if (res.ok || (400 <= status && status < 500)) {
+          localStorage.removeItem("signUpIdempotencyKey");
+        }
+
         if (!res.ok) {
-          toast.error(`Sign Up failed. ${res.status} ${await res.text()}`);
+          toast.error(`Sign Up failed. ${status} ${await res.text()}`);
         } else {
           toast.success("Sign Up succeeded.");
         }
