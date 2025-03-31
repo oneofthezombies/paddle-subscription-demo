@@ -29,27 +29,30 @@ export function SignUpForm() {
       localStorage.getItem("signUpIdempotencyKey") || crypto.randomUUID();
     localStorage.setItem("signUpIdempotencyKey", signUpIdempotencyKey);
 
-    fetch("/api/signup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": signUpIdempotencyKey,
-      },
-      body: JSON.stringify(values),
-    })
-      .then(async (res) => {
-        const { status } = res;
-        if (res.ok || (400 <= status && status < 500)) {
-          localStorage.removeItem("signUpIdempotencyKey");
-        }
-
-        if (!res.ok) {
-          toast.error(`Sign Up failed. ${status} ${await res.text()}`);
-        } else {
-          toast.success("Sign Up succeeded.");
-        }
+    // TODO: For testing idempotent requests
+    for (let i = 0; i < 10; ++i) {
+      fetch("/api/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": signUpIdempotencyKey,
+        },
+        body: JSON.stringify(values),
       })
-      .catch((err) => toast.error(`Sign Up request failed. ${err}`));
+        .then(async (res) => {
+          const { status } = res;
+          if (res.ok || (400 <= status && status < 500)) {
+            localStorage.removeItem("signUpIdempotencyKey");
+          }
+
+          if (!res.ok) {
+            toast.error(`Sign Up failed. ${status} ${await res.text()}`);
+          } else {
+            toast.success("Sign Up succeeded.");
+          }
+        })
+        .catch((err) => toast.error(`Sign Up request failed. ${err}`));
+    }
   }
 
   return (

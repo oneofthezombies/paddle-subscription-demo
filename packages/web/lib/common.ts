@@ -14,8 +14,12 @@ export type SignUp = z.infer<typeof SignUp>;
 export const errorCodeMap = {
   IDEMPOTENCY_KEY_REQUIRED: "The Idempotency-Key header is required.",
   DUPLICATE_REQUEST: "This is a duplicate request.",
+  IDEMPOTENT_REQUEST_FAILED:
+    "The previous attempt for this request has failed and cannot be retried.",
   IDEMPOTENCY_KEY_MISMATCH: "The Idempotency-Key does not match the request.",
   EMAIL_ALREADY_EXISTS: "This email is already in use.",
+  TEMPORARY_UNAVAILABLE:
+    "Service is temporarily unavailable. Please retry later.",
 };
 export type ErrorCode = keyof typeof errorCodeMap;
 

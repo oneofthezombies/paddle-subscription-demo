@@ -80,7 +80,7 @@ export async function hashPassword(password: string) {
 }
 
 export const IdemTaskCtx = {
-  create_user__paddle_customer_creation_requested: z.object({}),
+  create_user__paddle_customer_creation_to_request: z.object({}),
   create_user__user_created: z.object({
     userId: z.number().int(),
   }),
@@ -102,9 +102,14 @@ function initPaddle() {
   return paddle;
 }
 
-export function respondJson(status: number, data: any) {
+export function respondJson(
+  status: number,
+  data: any,
+  headers: HeadersInit | undefined = undefined
+) {
   return Response.json(data, {
     status,
+    headers,
   });
 }
 

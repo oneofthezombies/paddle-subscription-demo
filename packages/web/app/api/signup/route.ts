@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const emailEncrypted = encryptAes256Gcm(email);
   const passwordHash = await hashPassword(password);
 
-  const tx0Res = await tryAsync(async () => {
+  const t0Res = await tryAsync(async () => {
     return await db.transaction(async (tx) => {
       const usersDb = users(tx);
       const user = await usersDb.findByEmail(emailHash);
@@ -44,8 +44,12 @@ export async function POST(request: Request) {
         return respondJson(400, error("IDEMPOTENCY_KEY_MISMATCH"));
       }
 
-      if (status === "in_progress") {
+      if (status === "to_request") {
         return respondJson(409, error("DUPLICATE_REQUEST"));
+      }
+
+      if (status === "failed") {
+        return respondJson(409, error("IDEMPOTENT_REQUEST_FAILED"));
       }
 
       if (status === "succeeded") {
@@ -63,17 +67,19 @@ export async function POST(request: Request) {
         });
       }
 
-      if (status === null || status === "failed") {
-        await idemTasksDb.update(idempotencyKey, { status: "in_progress" });
+      if (status === "started" || status === "retryable") {
+        await idemTasksDb.update(idempotencyKey, {
+          status: "to_request",
+        });
 
         if (step === null) {
           await idemTasksDb.update(idempotencyKey, {
-            step: "create_user__paddle_customer_creation_requested",
+            step: "create_user__paddle_customer_creation_to_request",
           });
           return null;
         }
 
-        if (step === "create_user__paddle_customer_creation_requested") {
+        if (step === "create_user__paddle_customer_creation_to_request") {
           return null;
         }
 
@@ -84,19 +90,22 @@ export async function POST(request: Request) {
     });
   });
 
-  if (!tx0Res.ok) {
-    await idemTasks(db).update(idempotencyKey, { status: "failed" });
-    throw tx0Res.error;
+  if (!t0Res.ok) {
+    await idemTasks(db).update(idempotencyKey, { status: "retryable" });
+    console.error("Failed to create_user t0.", t0Res.error);
+    return respondJson(503, error("TEMPORARY_UNAVAILABLE"), {
+      "Retry-After": "5",
+    });
   }
 
-  if (tx0Res.data) {
-    return tx0Res.data;
+  if (t0Res.data) {
+    return t0Res.data;
   }
 
   // TODO: Add timeout to handle cases where the server shuts down or hangs while status is in_progress.
-  const paddleCustomer = await createPaddleCustomer(email);
+  const e0Res = await tryAsync(() => createPaddleCustomer(email));
 
-  const tx1Res = await tryAsync(async () => {
+  const t1Res = await tryAsync(async () => {
     return await db.transaction(async (tx) => {
       const idemTasksDb = idemTasks(tx);
       const task = await idemTasksDb.selectForUpdate(idempotencyKey);
@@ -104,6 +113,14 @@ export async function POST(request: Request) {
         throw new Error("Task must exist.");
       }
 
+      if (!e0Res.ok) {
+        await idemTasksDb.update(idempotencyKey, { status: "retryable" });
+        return respondJson(503, error("TEMPORARY_UNAVAILABLE"), {
+          "Retry-After": "5",
+        });
+      }
+
+      const paddleCustomer = e0Res.data;
       const { context } = task;
       const usersDb = users(tx);
       const user = await usersDb.insert({
@@ -124,16 +141,19 @@ export async function POST(request: Request) {
     });
   });
 
-  if (!tx1Res.ok) {
-    const paddleRes = await tryAsync(() =>
-      deletePaddleCustomer(paddleCustomer.id, email)
-    );
-    if (!paddleRes.ok) {
-      console.error("Failed to delete paddle customer.", paddleRes.error);
+  if (!t1Res.ok) {
+    if (e0Res.ok) {
+      const paddleCustomer = e0Res.data;
+      const paddleRes = await tryAsync(() =>
+        deletePaddleCustomer(paddleCustomer.id, email)
+      );
+      if (!paddleRes.ok) {
+        console.error("Failed to delete paddle customer.", paddleRes.error);
+      }
     }
 
     const taskRes = await tryAsync(() =>
-      idemTasks(db).update(idempotencyKey, { status: "failed" })
+      idemTasks(db).update(idempotencyKey, { status: "retryable" })
     );
     if (!taskRes.ok) {
       console.error(
@@ -142,10 +162,17 @@ export async function POST(request: Request) {
       );
     }
 
-    throw tx1Res.error;
+    console.error("Failed to create_user t1.", t1Res.error);
+    return respondJson(503, error("TEMPORARY_UNAVAILABLE"), {
+      "Retry-After": "5",
+    });
   }
 
-  const user = tx1Res.data;
+  if (t1Res.data instanceof Response) {
+    return t1Res.data;
+  }
+
+  const user = t1Res.data;
   const emailDecrypted = decryptAes256Gcm(emailEncrypted);
   return respondJson(201, {
     id: user.id,
