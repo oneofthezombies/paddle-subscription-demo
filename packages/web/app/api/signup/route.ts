@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { error, SignUp, tryAsync } from "@/lib/common";
+import { Db, db } from "@/db";
+import { error, MaybePromise, resultify, SignUp } from "@/lib/common";
 import {
   createPaddleCustomer,
   decryptAes256Gcm,
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const emailEncrypted = encryptAes256Gcm(email);
   const passwordHash = await hashPassword(password);
 
-  const t0Res = await tryAsync(async () => {
+  const t0Res = await resultify(async () => {
     return await db.transaction(async (tx) => {
       const usersDb = users(tx);
       const user = await usersDb.findByEmail(emailHash);
@@ -103,9 +103,9 @@ export async function POST(request: Request) {
   }
 
   // TODO: Add timeout to handle cases where the server shuts down or hangs while status is in_progress.
-  const e0Res = await tryAsync(() => createPaddleCustomer(email));
+  const e0Res = await resultify(() => createPaddleCustomer(email));
 
-  const t1Res = await tryAsync(async () => {
+  const t1Res = await resultify(async () => {
     return await db.transaction(async (tx) => {
       const idemTasksDb = idemTasks(tx);
       const task = await idemTasksDb.selectForUpdate(idempotencyKey);
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
   if (!t1Res.ok) {
     if (e0Res.ok) {
       const paddleCustomer = e0Res.data;
-      const paddleRes = await tryAsync(() =>
+      const paddleRes = await resultify(() =>
         deletePaddleCustomer(paddleCustomer.id, email)
       );
       if (!paddleRes.ok) {
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const taskRes = await tryAsync(() =>
+    const taskRes = await resultify(() =>
       idemTasks(db).update(idempotencyKey, { status: "retryable" })
     );
     if (!taskRes.ok) {

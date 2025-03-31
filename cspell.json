@@ -13,5 +13,5 @@
     ".devcontainer/devcontainer.json",
     ".devcontainer/Dockerfile"
   ],
-  "words": ["tocstop", "retryable"]
+  "words": ["tocstop", "retryable", "resultify"]
 }
