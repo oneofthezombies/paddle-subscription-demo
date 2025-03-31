@@ -11,9 +11,9 @@ import {
   hashEmail,
   hashPassword,
   IdemTaskCtx,
-  insertIdemTask,
   respondJson,
   selectIdemTaskForUpdate,
+  tryInsertIdemTask,
   updateIdemCols,
   updateIdemTaskStatus,
   updateIdemTaskStep,
@@ -32,15 +32,15 @@ export async function POST(request: Request) {
 
   const tx0Res = await tryAsync(async () => {
     return await db.transaction(async (tx) => {
-      let task = await selectIdemTaskForUpdate(tx, idempotencyKey);
-      if (!task) {
-        // first request
-        const user = await findUserByEmail(tx, emailHash);
-        if (user) {
-          return respondJson(409, error("EMAIL_ALREADY_EXISTS"));
-        }
+      const user = await findUserByEmail(tx, emailHash);
+      if (user) {
+        return respondJson(409, error("EMAIL_ALREADY_EXISTS"));
+      }
 
-        task = await insertIdemTask(tx, idempotencyKey, "create_user");
+      await tryInsertIdemTask(tx, idempotencyKey, "create_user");
+      const task = await selectIdemTaskForUpdate(tx, idempotencyKey);
+      if (!task) {
+        throw new Error("Task must exist.");
       }
 
       const { status, context, operation, step } = task;

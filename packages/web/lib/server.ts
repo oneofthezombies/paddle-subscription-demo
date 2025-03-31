@@ -182,19 +182,18 @@ export async function selectIdemTaskForUpdate(
   return tasks[0];
 }
 
-export async function insertIdemTask(
+export async function tryInsertIdemTask(
   c: DbClient,
   idempotencyKey: string,
   operation: IdemTaskOperation
 ) {
-  const tasks = await c
+  await c
     .insert(IdemTasks)
     .values({
       idempotencyKey,
       operation,
     })
-    .returning();
-  return tasks[0];
+    .onConflictDoNothing({ target: IdemTasks.idempotencyKey });
 }
 
 export async function updateIdemTaskStep(
