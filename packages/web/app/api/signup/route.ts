@@ -2,21 +2,15 @@ import { db } from "@/db";
 import { error, SignUp, tryAsync } from "@/lib/common";
 import {
   createPaddleCustomer,
-  createUser,
   decryptAes256Gcm,
   deletePaddleCustomer,
   encryptAes256Gcm,
-  findUserByEmail,
-  findUserById,
   hashEmail,
   hashPassword,
   IdemTaskCtx,
+  idemTasks,
   respondJson,
-  selectIdemTaskForUpdate,
-  tryInsertIdemTask,
-  updateIdemCols,
-  updateIdemTaskStatus,
-  updateIdemTaskStep,
+  users,
 } from "@/lib/server";
 
 export async function POST(request: Request) {
@@ -32,13 +26,15 @@ export async function POST(request: Request) {
 
   const tx0Res = await tryAsync(async () => {
     return await db.transaction(async (tx) => {
-      const user = await findUserByEmail(tx, emailHash);
+      const usersDb = users(tx);
+      const user = await usersDb.findByEmail(emailHash);
       if (user) {
         return respondJson(409, error("EMAIL_ALREADY_EXISTS"));
       }
 
-      await tryInsertIdemTask(tx, idempotencyKey, "create_user");
-      const task = await selectIdemTaskForUpdate(tx, idempotencyKey);
+      const idemTasksDb = idemTasks(tx);
+      await idemTasksDb.tryInsert({ idempotencyKey, operation: "create_user" });
+      const task = await idemTasksDb.selectForUpdate(idempotencyKey);
       if (!task) {
         throw new Error("Task must exist.");
       }
@@ -55,7 +51,7 @@ export async function POST(request: Request) {
       if (status === "succeeded") {
         const { userId } =
           await IdemTaskCtx.create_user__user_created.parseAsync(context);
-        const user = await findUserById(tx, userId);
+        const user = await usersDb.findById(userId);
         if (!user) {
           throw new Error("User must exist.");
         }
@@ -68,14 +64,12 @@ export async function POST(request: Request) {
       }
 
       if (status === null || status === "failed") {
-        await updateIdemTaskStatus(tx, idempotencyKey, "in_progress");
+        await idemTasksDb.update(idempotencyKey, { status: "in_progress" });
 
         if (step === null) {
-          await updateIdemTaskStep(
-            tx,
-            idempotencyKey,
-            "create_user__paddle_customer_creation_requested"
-          );
+          await idemTasksDb.update(idempotencyKey, {
+            step: "create_user__paddle_customer_creation_requested",
+          });
           return null;
         }
 
@@ -91,7 +85,7 @@ export async function POST(request: Request) {
   });
 
   if (!tx0Res.ok) {
-    await updateIdemTaskStatus(db, idempotencyKey, "failed");
+    await idemTasks(db).update(idempotencyKey, { status: "failed" });
     throw tx0Res.error;
   }
 
@@ -104,23 +98,24 @@ export async function POST(request: Request) {
 
   const tx1Res = await tryAsync(async () => {
     return await db.transaction(async (tx) => {
-      const task = await selectIdemTaskForUpdate(tx, idempotencyKey);
+      const idemTasksDb = idemTasks(tx);
+      const task = await idemTasksDb.selectForUpdate(idempotencyKey);
       if (!task) {
         throw new Error("Task must exist.");
       }
 
       const { context } = task;
-      const user = await createUser(
-        tx,
+      const usersDb = users(tx);
+      const user = await usersDb.insert({
         emailEncrypted,
         emailHash,
         passwordHash,
-        paddleCustomer.id
-      );
+        paddleCustomerId: paddleCustomer.id,
+      });
 
       Reflect.set(context as object, "paddleCustomerId", paddleCustomer.id);
       Reflect.set(context as object, "userId", user.id);
-      await updateIdemCols(tx, idempotencyKey, {
+      await idemTasksDb.update(idempotencyKey, {
         context,
         step: "create_user__user_created",
         status: "succeeded",
@@ -138,7 +133,7 @@ export async function POST(request: Request) {
     }
 
     const taskRes = await tryAsync(() =>
-      updateIdemTaskStatus(db, idempotencyKey, "failed")
+      idemTasks(db).update(idempotencyKey, { status: "failed" })
     );
     if (!taskRes.ok) {
       console.error(

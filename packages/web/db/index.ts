@@ -10,6 +10,13 @@ function initDb() {
 }
 
 export const db = initDb();
-export type Db = typeof db;
-export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-export type DbClient = Db | DbTx;
+export type Db = Pick<
+  typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0],
+  | "delete"
+  | "execute"
+  | "insert"
+  | "select"
+  | "selectDistinct"
+  | "selectDistinctOn"
+  | "update"
+>;

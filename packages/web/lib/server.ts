@@ -12,10 +12,10 @@ import {
   IdemTaskStep,
   Users,
 } from "@/db/schema";
-import { DbClient } from "@/db";
+import { Db } from "@/db";
 import { Environment, LogLevel, Paddle } from "@paddle/paddle-node-sdk";
 import { eq } from "drizzle-orm";
-import { PgUpdateSetSource } from "drizzle-orm/pg-core";
+import { PgInsertValue, PgUpdateSetSource } from "drizzle-orm/pg-core";
 
 const aes256GcmKeyBuffer = parseAes256GcmKey();
 
@@ -123,120 +123,71 @@ export async function deletePaddleCustomer(
   });
 }
 
-export async function findUserByEmail(c: DbClient, emailHash: string) {
-  const users = await c
-    .select()
-    .from(Users)
-    .where(eq(Users.emailHash, emailHash))
-    .limit(1);
-  if (users.length === 0) {
-    return null;
-  }
-  return users[0];
+export function users(db: Db) {
+  return {
+    async insert(values: PgInsertValue<typeof Users>) {
+      const users = await db.insert(Users).values(values).returning();
+      return users[0];
+    },
+    async findById(userId: number) {
+      const users = await db
+        .select()
+        .from(Users)
+        .where(eq(Users.id, userId))
+        .limit(1);
+      if (users.length === 0) {
+        return null;
+      }
+      return users[0];
+    },
+    async findByEmail(emailHash: string) {
+      const users = await db
+        .select()
+        .from(Users)
+        .where(eq(Users.emailHash, emailHash))
+        .limit(1);
+      if (users.length === 0) {
+        return null;
+      }
+      return users[0];
+    },
+  };
 }
 
-export async function findUserById(c: DbClient, userId: number) {
-  const users = await c
-    .select()
-    .from(Users)
-    .where(eq(Users.id, userId))
-    .limit(1);
-  if (users.length === 0) {
-    return null;
-  }
-  return users[0];
-}
-
-export async function createUser(
-  c: DbClient,
-  emailEncrypted: string,
-  emailHash: string,
-  passwordHash: string,
-  paddleCustomerId: string
-) {
-  const users = await c
-    .insert(Users)
-    .values({
-      emailEncrypted,
-      emailHash,
-      passwordHash,
-      paddleCustomerId,
-    })
-    .returning();
-  return users[0];
-}
-
-export async function selectIdemTaskForUpdate(
-  c: DbClient,
-  idempotencyKey: string
-) {
-  const tasks = await c
-    .select()
-    .from(IdemTasks)
-    .where(eq(IdemTasks.idempotencyKey, idempotencyKey))
-    .limit(1)
-    .for("update");
-  if (tasks.length == 0) {
-    return null;
-  }
-  return tasks[0];
-}
-
-export async function tryInsertIdemTask(
-  c: DbClient,
-  idempotencyKey: string,
-  operation: IdemTaskOperation
-) {
-  await c
-    .insert(IdemTasks)
-    .values({
-      idempotencyKey,
-      operation,
-    })
-    .onConflictDoNothing({ target: IdemTasks.idempotencyKey });
-}
-
-export async function updateIdemTaskStep(
-  c: DbClient,
-  idempotencyKey: string,
-  step: IdemTaskStep
-) {
-  await c
-    .update(IdemTasks)
-    .set({
-      step,
-      updatedAt: new Date(),
-    })
-    .where(eq(IdemTasks.idempotencyKey, idempotencyKey));
-}
-
-export async function updateIdemTaskStatus(
-  c: DbClient,
-  idempotencyKey: string,
-  status: IdemTaskStatus
-) {
-  await c
-    .update(IdemTasks)
-    .set({
-      status,
-      updatedAt: new Date(),
-    })
-    .where(eq(IdemTasks.idempotencyKey, idempotencyKey));
-}
-
-export async function updateIdemCols(
-  c: DbClient,
-  idempotencyKey: string,
-  values: Omit<
-    PgUpdateSetSource<typeof IdemTasks>,
-    "idempotencyKey" | "updatedAt"
-  >
-) {
-  await c
-    .update(IdemTasks)
-    .set({
-      ...values,
-      updatedAt: new Date(),
-    })
-    .where(eq(IdemTasks.idempotencyKey, idempotencyKey));
+export function idemTasks(db: Db) {
+  return {
+    async tryInsert(values: PgInsertValue<typeof IdemTasks>) {
+      await db
+        .insert(IdemTasks)
+        .values(values)
+        .onConflictDoNothing({ target: IdemTasks.idempotencyKey });
+    },
+    async selectForUpdate(idempotencyKey: string) {
+      const tasks = await db
+        .select()
+        .from(IdemTasks)
+        .where(eq(IdemTasks.idempotencyKey, idempotencyKey))
+        .limit(1)
+        .for("update");
+      if (tasks.length == 0) {
+        return null;
+      }
+      return tasks[0];
+    },
+    async update(
+      idempotencyKey: string,
+      values: Omit<
+        PgUpdateSetSource<typeof IdemTasks>,
+        "idempotencyKey" | "updatedAt"
+      >
+    ) {
+      await db
+        .update(IdemTasks)
+        .set({
+          ...values,
+          updatedAt: new Date(),
+        })
+        .where(eq(IdemTasks.idempotencyKey, idempotencyKey));
+    },
+  };
 }
