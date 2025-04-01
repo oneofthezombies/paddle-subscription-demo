@@ -19,4 +19,5 @@ export type Db = Pick<
   | "selectDistinct"
   | "selectDistinctOn"
   | "update"
+  | "transaction"
 >;
